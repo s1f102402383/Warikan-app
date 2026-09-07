@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from db import get_db_connection
 
 
 def main():
@@ -40,7 +41,24 @@ def main():
 
             result = response.json()
 
-            st.write(result)
+            test = result["result"]["ocrInfo"]["fullText"]["text"]
 
+            # DBに接続
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
+            sql = """
+                INSERT INTO mydb.evidences (name, text)
+                VALUES (%s, %s)
+            """
+
+            cursor.execute(sql,(uploaded_file.name,test))
+            conn.commit()
+
+            cursor.close()
+            conn.close()
+
+            st.write(test)
+
+            
 main()
