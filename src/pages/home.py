@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import os
+import uuid
 from db import get_db_connection
 
 
@@ -21,14 +22,20 @@ def main():
             save_dir = "src/uploads"
             os.makedirs(save_dir, exist_ok=True)
 
-            image_path = os.path.join(save_dir, uploaded_file.name)
+            # 元のファイルの拡張子でやる
+            extension = os.path.splitext(uploaded_file.name)[1]
+
+            # UUIDを使って重複しないファイル名を作る
+            file_name = f"{uuid.uuid4()}{extension}"
+            ##ここでパスを入れる
+            image_path = os.path.join(save_dir, file_name)
 
             with open(image_path, "wb") as f:
                 f.write(uploaded_file.getvalue())
 
             files = {
                 "file": (
-                    uploaded_file.name,
+                    file_name,
                     uploaded_file.getvalue(),
                     uploaded_file.type,
                 )
@@ -40,7 +47,7 @@ def main():
 
             headers = {
                 "Accept": "application/ocrv3+json",
-                "Authorization": "REMOVED_API_KEY" #APikey
+                "Authorization": "REMOVED_API_KEY"
             }
 
             response = requests.post(
