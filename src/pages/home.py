@@ -5,6 +5,7 @@ from db import get_db_connection
 
 def main():
     st.title("ホーム")
+    
 
     uploaded_file = st.file_uploader(
         "画像を選択してください",
@@ -58,7 +59,8 @@ def main():
             cursor.close()
             conn.close()
 
-            st.write(test)
+            st.write(result)
+            
 
             
 main()

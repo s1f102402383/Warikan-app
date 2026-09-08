@@ -7,6 +7,7 @@ def main():
     pages = st.navigation(
         [
             st.Page("pages/home.py", title="ホーム"),
+            st.Page("pages/serch.py",title="検索"),
         ]
     )
     pages.run()
