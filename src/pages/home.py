@@ -1,11 +1,11 @@
 import streamlit as st
 import requests
+import os
 from db import get_db_connection
 
 
 def main():
     st.title("ホーム")
-    
 
     uploaded_file = st.file_uploader(
         "画像を選択してください",
@@ -16,6 +16,16 @@ def main():
         st.image(uploaded_file)
 
         if st.button("OCR実行"):
+
+            # 画像を保存
+            save_dir = "src/uploads"
+            os.makedirs(save_dir, exist_ok=True)
+
+            image_path = os.path.join(save_dir, uploaded_file.name)
+
+            with open(image_path, "wb") as f:
+                f.write(uploaded_file.getvalue())
+
             files = {
                 "file": (
                     uploaded_file.name,
@@ -49,18 +59,21 @@ def main():
             cursor = conn.cursor()
 
             sql = """
-                INSERT INTO mydb.evidences (name, text)
-                VALUES (%s, %s)
+                INSERT INTO mydb.evidences (name, text, image_path)
+                VALUES (%s, %s, %s)
             """
 
-            cursor.execute(sql,(uploaded_file.name,test))
+            cursor.execute(
+                sql,
+                (uploaded_file.name, test, image_path)
+            )
+
             conn.commit()
 
             cursor.close()
             conn.close()
 
             st.write(result)
-            
 
-            
+
 main()

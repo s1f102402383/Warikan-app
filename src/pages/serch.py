@@ -16,16 +16,16 @@ if keyword:
     cursor = conn.cursor()
 
     sql = """
-        SELECT id, name, text
+        SELECT id, name, text, image_path
         FROM mydb.evidences
-        WHERE  text LIKE %s
+        WHERE text LIKE %s
         ORDER BY id DESC
     """
 
     search_keyword = f"%{keyword}%"
 
-    cursor.execute(sql, search_keyword)#１つの検索したい文字をtextで知らばる
-    results = cursor.fetchall()#検索で見つかったででデータを全部取得
+    cursor.execute(sql, search_keyword)
+    results = cursor.fetchall()
 
     cursor.close()
     conn.close()
@@ -34,10 +34,16 @@ if keyword:
 
     if results:
         for result in results:
-            id, name, text = result
+            id, name, text, image_path = result
 
             with st.expander(f"{name}"):
-                st.write(text)#
+                if image_path:
+                    st.image(image_path)
+                else:
+                    st.write("画像が保存されていません。")
+
+                st.write(text)
+
     else:
         st.info("検索結果がありません。")
 
