@@ -1,27 +1,37 @@
 import streamlit as st
 from db import get_db_connection
 
+
 st.title("旅行メンバー登録")
+
 travel_name = st.text_input("旅行先を入力してください")
+
 
 # メンバー一覧を保存
 if "members" not in st.session_state:
     st.session_state.members = []
 
-name = st.text_input("名前を入力してください")
 
-if st.button("メンバーを追加"):
-    if name:
-        st.session_state.members.append(name)
-        st.success(f"{name}さんを追加しました")
-    else:
-        st.warning("名前を入力してください")
+# メンバー追加フォーム
+with st.form("member_form", clear_on_submit=True):
+
+    name = st.text_input("名前を入力してください")
+
+    add_button = st.form_submit_button("メンバーを追加")
+
+    if add_button:
+        if name:
+            st.session_state.members.append(name)
+            st.success(f"{name}さんを追加しました")
+        else:
+            st.warning("名前を入力してください")
+
 
 # 現在のメンバーを表示
 st.subheader("現在のメンバー")
 
-
 for i, member in enumerate(st.session_state.members):
+
     col1, col2 = st.columns([4, 1])
 
     with col1:
@@ -32,7 +42,10 @@ for i, member in enumerate(st.session_state.members):
             st.session_state.members.pop(i)
             st.rerun()
 
+
+# 旅行を開始
 if st.button("旅行を開始"):
+
     if travel_name and len(st.session_state.members) >= 2:
 
         conn = get_db_connection()
@@ -51,6 +64,7 @@ if st.button("旅行を開始"):
 
         # メンバーを登録
         for member in st.session_state.members:
+
             sql = """
                 INSERT INTO mydb.members (travel_id, name)
                 VALUES (%s, %s)
@@ -66,4 +80,7 @@ if st.button("旅行を開始"):
         st.success("旅行を開始します！")
 
     else:
-        st.warning("旅行名と2人以上のメンバーを登録してください。")
+        st.warning(
+            "旅行名と2人以上のメンバーを登録してください。"
+        )
+
