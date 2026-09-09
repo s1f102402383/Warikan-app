@@ -6,7 +6,7 @@ from db import get_db_connection
 
 
 def main():
-    st.title("ホーム")
+    st.title("レシート登録")
 
     uploaded_file = st.file_uploader(
         "画像を選択してください",
