@@ -29,7 +29,7 @@ if travels:
 
     # 旅行を選択
     travel_options = {
-        f"{travel[1]}（ID: {travel[0]}）": travel[0]
+        f"{travel[1]}": travel[0]
         for travel in travels
     }
 

@@ -39,7 +39,7 @@ def main():
 
             # 旅行を選択
             travel_options = {
-                f"{travel[1]}（ID: {travel[0]}）": travel[0]
+                f"{travel[1]}": travel[0]
                 for travel in travels
             }
 
@@ -158,28 +158,10 @@ def main():
                     result = response.json()
 
                     # OCRで読み取った文章
-                    test = result[
-                        "result"
-                    ][
-                        "ocrInfo"
-                    ][
-                        "fullText"
-                    ][
-                        "text"
-                    ]
+                    test = result["result"]["ocrInfo"]["fullText"]["text"]
 
                     # 合計金額
-                    amount = result[
-                        "result"
-                    ][
-                        "totalPrice"
-                    ][
-                        "price"
-                    ][
-                        "formatted"
-                    ][
-                        "value"
-                    ]
+                    amount = result["result"]["totalPrice"]["price"]["formatted"]["value"]
 
                     # ==========================================
                     # DBに保存
@@ -261,7 +243,7 @@ def main():
                     # ==========================================
 
                     if st.button(
-                        "💰 割り勘結果を見る",
+                        "割り勘結果を見る",
                         use_container_width=True
                     ):
 

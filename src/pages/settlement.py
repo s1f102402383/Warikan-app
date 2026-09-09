@@ -24,7 +24,7 @@ if travels:
 
     # 旅行名ではなくIDを使って選択肢を作る
     travel_options = {
-        f"{travel[1]}（ID: {travel[0]}）": travel[0]
+        f"{travel[1]}": travel[0]
         for travel in travels
     }
 
@@ -58,7 +58,7 @@ if travels:
     st.subheader("メンバー")
 
     for member in members:
-        st.write(f"・{member[1]}（ID: {member[0]}）")
+        st.write(f"・{member[1]}")
 
     # =========================
     # 支払額を取得
@@ -99,7 +99,7 @@ if travels:
         paid_amounts[member_id] = paid
 
         st.write(
-            f"{member_name}（ID: {member_id}）：{paid}円"
+            f"{member_name}：{paid}円"
         )
 
     # =========================
@@ -157,17 +157,17 @@ if travels:
 
             if balance > 0:
                 st.write(
-                    f"{member_name}（ID: {member_id}）："
+                    f"{member_name}："
                     f"{balance:.0f}円 もらう"
                 )
             elif balance < 0:
                 st.write(
-                    f"{member_name}（ID: {member_id}）："
+                    f"{member_name}："
                     f"{abs(balance):.0f}円 払う"
                 )
             else:
                 st.write(
-                    f"{member_name}（ID: {member_id}）："
+                    f"{member_name}："
                     "精算なし"
                 )
 
@@ -217,9 +217,9 @@ if travels:
             )
 
             st.write(
-                f"**{debtor['name']}（ID: {debtor['id']}）"
+                f"**{debtor['name']}"
                 f" → "
-                f"{creditor['name']}（ID: {creditor['id']}）"
+                f"{creditor['name']}"
                 f"：{payment:.0f}円**"
             )
 
