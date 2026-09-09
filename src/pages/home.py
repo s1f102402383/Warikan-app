@@ -1,3 +1,4 @@
+
 import streamlit as st
 import requests
 import os
@@ -16,7 +17,10 @@ def main():
     if uploaded_file is not None:
         st.image(uploaded_file)
 
-        # 旅行を選択
+        # ==========================================
+        # 旅行を取得
+        # ==========================================
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -32,19 +36,44 @@ def main():
         conn.close()
 
         if travels:
+
+            # 旅行を選択
             travel_options = {
-                travel[1]: travel[0]
+                f"{travel[1]}（ID: {travel[0]}）": travel[0]
                 for travel in travels
             }
 
+            travel_names = list(travel_options.keys())
+
+            # 直前に作成した旅行を取得
+            created_travel_id = st.session_state.get(
+                "created_travel_id"
+            )
+
+            # 初期状態では一番上の旅行を選択
+            default_index = 0
+
+            # 直前に作成した旅行があれば自動選択
+            if created_travel_id is not None:
+
+                for i, travel in enumerate(travels):
+
+                    if travel[0] == created_travel_id:
+                        default_index = i
+                        break
+
             selected_travel = st.selectbox(
                 "旅行を選択してください",
-                list(travel_options.keys())
+                travel_names,
+                index=default_index
             )
 
             travel_id = travel_options[selected_travel]
 
+            # ==========================================
             # 選択した旅行のメンバーを取得
+            # ==========================================
+
             conn = get_db_connection()
             cursor = conn.cursor()
 
@@ -60,6 +89,8 @@ def main():
             conn.close()
 
             if members:
+
+                # メンバーを選択
                 member_options = {
                     member[1]: member[0]
                     for member in members
@@ -72,21 +103,31 @@ def main():
 
                 payer_id = member_options[selected_payer]
 
+                # ==========================================
+                # OCR実行
+                # ==========================================
+
                 if st.button("OCR実行"):
 
                     # 画像を保存
                     save_dir = "src/uploads"
                     os.makedirs(save_dir, exist_ok=True)
 
-                    extension = os.path.splitext(uploaded_file.name)[1]
+                    extension = os.path.splitext(
+                        uploaded_file.name
+                    )[1]
 
                     file_name = f"{uuid.uuid4()}{extension}"
 
-                    image_path = os.path.join(save_dir, file_name)
+                    image_path = os.path.join(
+                        save_dir,
+                        file_name
+                    )
 
                     with open(image_path, "wb") as f:
                         f.write(uploaded_file.getvalue())
 
+                    # OCRに送るファイル
                     files = {
                         "file": (
                             file_name,
@@ -95,15 +136,18 @@ def main():
                         )
                     }
 
+                    # OCR APIのデータ
                     data = {
                         "evidence_type": "receipt"
                     }
 
+                    # OCR APIのヘッダー
                     headers = {
                         "Accept": "application/ocrv3+json",
                         "Authorization": "REMOVED_API_KEY"
                     }
 
+                    # OCR APIを実行
                     response = requests.post(
                         "https://ocr-bridge-dev.inv.sorimachi.biz/recognize",
                         headers=headers,
@@ -113,13 +157,34 @@ def main():
 
                     result = response.json()
 
-                    test = result["result"]["ocrInfo"]["fullText"]["text"]
+                    # OCRで読み取った文章
+                    test = result[
+                        "result"
+                    ][
+                        "ocrInfo"
+                    ][
+                        "fullText"
+                    ][
+                        "text"
+                    ]
 
-                    amount = result["result"]["totalPrice"]["price"]["formatted"]["value"]
+                    # 合計金額
+                    amount = result[
+                        "result"
+                    ][
+                        "totalPrice"
+                    ][
+                        "price"
+                    ][
+                        "formatted"
+                    ][
+                        "value"
+                    ]
 
-                    st.write("合計金額:" + amount + "円")
+                    # ==========================================
+                    # DBに保存
+                    # ==========================================
 
-                    # DBに接続
                     conn = get_db_connection()
                     cursor = conn.cursor()
 
@@ -127,23 +192,96 @@ def main():
                         INSERT INTO mydb.evidences
                         (name, text, image_path, travel_id, payer_id, amount)
                         VALUES (%s, %s, %s, %s, %s, %s)
-                            """
+                    """
 
                     cursor.execute(
-                        sql,(uploaded_file.name, test, image_path, travel_id, payer_id, amount))
+                        sql,
+                        (
+                            uploaded_file.name,
+                            test,
+                            image_path,
+                            travel_id,
+                            payer_id,
+                            amount
+                        )
+                    )
 
                     conn.commit()
 
                     cursor.close()
                     conn.close()
 
-                    st.write(result)
+                    # ==========================================
+                    # OCR結果を保存
+                    # ==========================================
+
+                    st.session_state.ocr_completed = True
+                    st.session_state.ocr_amount = amount
+                    st.session_state.ocr_travel_id = travel_id
+
+                    st.rerun()
+
+                # ==========================================
+                # OCR完了後の表示
+                # ==========================================
+
+                if st.session_state.get(
+                    "ocr_completed",
+                    False
+                ):
+
+                    st.divider()
+
+                    st.subheader(
+                        "レシートの合計金額"
+                    )
+
+                    st.markdown(
+                        f"""
+                        <div style="
+                            font-size: 36px;
+                            font-weight: bold;
+                            text-align: center;
+                            padding: 15px;
+                        ">
+                            {st.session_state.ocr_amount} 円
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    st.success(
+                        "レシートを登録しました！"
+                    )
+
+                    st.write("")
+
+                    # ==========================================
+                    # 割り勘ページへ
+                    # ==========================================
+
+                    if st.button(
+                        "💰 割り勘結果を見る",
+                        use_container_width=True
+                    ):
+
+                        st.session_state.settlement_travel_id = (
+                            st.session_state.ocr_travel_id
+                        )
+
+                        st.switch_page(
+                            "pages/settlement.py"
+                        )
 
             else:
-                st.warning("この旅行にはメンバーが登録されていません。")
+                st.warning(
+                    "この旅行にはメンバーが登録されていません。"
+                )
 
         else:
-            st.warning("旅行が登録されていません。")
+            st.warning(
+                "旅行が登録されていません。"
+            )
 
 
 main()

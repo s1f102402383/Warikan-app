@@ -84,15 +84,32 @@ if st.button("旅行を開始"):
         cursor.close()
         conn.close()
 
-        st.success("旅行を開始しました！")
+        # 作成した旅行を保存
+        st.session_state.created_travel_id = travel_id
 
         # 入力中のメンバーをリセット
         st.session_state.members = []
+
+        st.success("旅行を開始しました！")
 
     else:
         st.warning(
             "旅行名と2人以上のメンバーを登録してください。"
         )
+
+
+# 旅行作成後に表示
+if "created_travel_id" in st.session_state:
+
+    st.info("次はレシートを登録")
+
+    if st.button("📷 レシートを登録する"):
+        st.switch_page("pages/home.py")
+
+        # 入力中のメンバーをリセット
+        st.session_state.members = []
+
+        
 
 
 # ==================================================
