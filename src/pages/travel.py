@@ -2,134 +2,221 @@ import streamlit as st
 from db import get_db_connection
 
 
-st.title("旅行管理")
+st.title("旅行")
+
+st.caption(
+    "旅行を作成して、参加するメンバーを登録します。"
+)
 
 
 # ==================================================
-# 新しい旅行を作成
+# 新しい旅行
 # ==================================================
 
-st.header("新しい旅行を作成")
+st.subheader("新しい旅行を作成")
 
-travel_name = st.text_input("旅行先を入力してください")
+travel_name = st.text_input(
+    "旅行名",
+    placeholder="例：岡山旅行"
+)
 
 
-# メンバー一覧を保存
+# ==================================================
+# 作成中メンバー
+# ==================================================
+
 if "members" not in st.session_state:
     st.session_state.members = []
 
 
-# メンバー追加フォーム
-with st.form("member_form", clear_on_submit=True):
+with st.form(
+    "member_form",
+    clear_on_submit=True
+):
 
-    name = st.text_input("名前を入力してください")
+    name = st.text_input(
+        "メンバーの名前",
+        placeholder="例：田中"
+    )
 
-    add_button = st.form_submit_button("メンバーを追加")
+    add_button = st.form_submit_button(
+        "メンバーを追加",
+        use_container_width=True
+    )
 
     if add_button:
-        if name:
-            st.session_state.members.append(name)
-            st.success(f"{name}さんを追加しました")
+
+        if name.strip():
+
+            st.session_state.members.append(
+                name.strip()
+            )
+
+            st.success(
+                f"{name.strip()}さんを追加しました。"
+            )
+
         else:
-            st.warning("名前を入力してください")
+
+            st.warning(
+                "名前を入力してください。"
+            )
 
 
-# 現在のメンバーを表示
-st.subheader("現在のメンバー")
-
-for i, member in enumerate(st.session_state.members):
-
-    col1, col2 = st.columns([4, 1])
-
-    with col1:
-        st.write(f"・{member}")
-
-    with col2:
-        if st.button("削除", key=f"delete_member_{i}"):
-            st.session_state.members.pop(i)
-            st.rerun()
+st.write("")
 
 
-# 旅行を開始
-if st.button("旅行を開始"):
+if st.session_state.members:
 
-    if travel_name and len(st.session_state.members) >= 2:
+    st.write("現在のメンバー")
+
+    for i, member in enumerate(
+        st.session_state.members
+    ):
+
+        with st.container(border=True):
+
+            col1, col2 = st.columns(
+                [4, 1]
+            )
+
+            with col1:
+
+                st.markdown(
+                    f"**{member}**"
+                )
+
+            with col2:
+
+                if st.button(
+                    "削除",
+                    key=f"new_delete_{i}"
+                ):
+
+                    st.session_state.members.pop(i)
+
+                    st.rerun()
+
+else:
+
+    st.info(
+        "まだメンバーが登録されていません。"
+    )
+
+
+st.write("")
+
+
+# ==================================================
+# 旅行開始
+# ==================================================
+
+if st.button(
+    "このメンバーで旅行を開始",
+    type="primary",
+    use_container_width=True
+):
+
+    if not travel_name.strip():
+
+        st.warning(
+            "旅行名を入力してください。"
+        )
+
+    elif len(st.session_state.members) < 2:
+
+        st.warning(
+            "2人以上のメンバーを登録してください。"
+        )
+
+    else:
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 旅行を登録
-        sql = """
+        cursor.execute(
+            """
             INSERT INTO mydb.travels (name)
             VALUES (%s)
-        """
+            """,
+            (travel_name.strip(),)
+        )
 
-        cursor.execute(sql, (travel_name,))
-
-        # 登録した旅行のIDを取得
         travel_id = cursor.lastrowid
 
-        # メンバーを登録
         for member in st.session_state.members:
 
-            sql = """
-                INSERT INTO mydb.members (travel_id, name)
+            cursor.execute(
+                """
+                INSERT INTO mydb.members
+                (travel_id, name)
                 VALUES (%s, %s)
-            """
-
-            cursor.execute(sql, (travel_id, member))
+                """,
+                (
+                    travel_id,
+                    member
+                )
+            )
 
         conn.commit()
 
         cursor.close()
         conn.close()
 
-        # 作成した旅行を保存
         st.session_state.created_travel_id = travel_id
-
-        # 入力中のメンバーをリセット
         st.session_state.members = []
 
-        st.success("旅行を開始しました！")
-
-    else:
-        st.warning(
-            "旅行名と2人以上のメンバーを登録してください。"
+        st.success(
+            f"{travel_name.strip()}を作成しました。"
         )
 
-
-# 旅行作成後に表示
-if "created_travel_id" in st.session_state:
-
-    st.info("次はレシートを登録")
-
-    if st.button("📷 レシートを登録する"):
-        st.switch_page("pages/home.py")
-
-        # 入力中のメンバーをリセット
-        st.session_state.members = []
-
-        
+        st.rerun()
 
 
 # ==================================================
-# 既存の旅行を管理
+# レシート登録への導線
+# ==================================================
+
+if "created_travel_id" in st.session_state:
+
+    st.divider()
+
+    st.subheader("次のステップ")
+
+    st.write(
+        "旅行を作成しました。レシートを登録してみましょう。"
+    )
+
+    if st.button(
+        "レシートを登録する",
+        type="primary",
+        use_container_width=True
+    ):
+
+        st.switch_page(
+            "pages/home.py"
+        )
+
+
+# ==================================================
+# 既存の旅行
 # ==================================================
 
 st.divider()
 
-st.header("既存の旅行を管理")
+st.subheader("既存の旅行")
 
 
-# 旅行一覧を取得
 conn = get_db_connection()
 cursor = conn.cursor()
 
-cursor.execute("""
+cursor.execute(
+    """
     SELECT id, name
     FROM mydb.travels
     ORDER BY id DESC
-""")
+    """
+)
 
 travels = cursor.fetchall()
 
@@ -137,32 +224,53 @@ cursor.close()
 conn.close()
 
 
-if travels:
+if not travels:
 
-    # 旅行を選択
-    travel_options = {
-        f"{travel[1]}": travel[0]
-        for travel in travels
-    }
-
-    selected_travel = st.selectbox(
-        "管理する旅行を選択してください",
-        list(travel_options.keys())
+    st.info(
+        "まだ旅行が登録されていません。"
     )
 
-    travel_id = travel_options[selected_travel]
+else:
+
+    travel_labels = [
+        f"{travel[1]}（ID: {travel[0]}）"
+        for travel in travels
+    ]
+
+    selected_label = st.selectbox(
+        "旅行を選択",
+        travel_labels
+    )
+
+    selected_index = travel_labels.index(
+        selected_label
+    )
+
+    selected_travel_id = travels[
+        selected_index
+    ][0]
+
+    selected_travel_name = travels[
+        selected_index
+    ][1]
 
 
-    # 選択した旅行のメンバーを取得
+    # ----------------------------------------------
+    # メンバー取得
+    # ----------------------------------------------
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT id, name
         FROM mydb.members
         WHERE travel_id = %s
         ORDER BY id
-    """, (travel_id,))
+        """,
+        (selected_travel_id,)
+    )
 
     existing_members = cursor.fetchall()
 
@@ -170,81 +278,111 @@ if travels:
     conn.close()
 
 
-    # ------------------------------------------
-    # メンバー一覧
-    # ------------------------------------------
+    st.write("")
 
-    st.subheader("現在のメンバー")
+    st.write(
+        f"**{selected_travel_name}のメンバー**"
+    )
+
 
     if existing_members:
 
         for member_id, member_name in existing_members:
 
-            col1, col2 = st.columns([4, 1])
+            with st.container(border=True):
 
-            with col1:
-                st.write(f"・{member_name}")
+                col1, col2 = st.columns(
+                    [4, 1]
+                )
 
-            with col2:
-                if st.button(
-                    "削除",
-                    key=f"existing_delete_{member_id}"
-                ):
+                with col1:
 
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-
-                    cursor.execute("""
-                        DELETE FROM mydb.members
-                        WHERE id = %s
-                    """, (member_id,))
-
-                    conn.commit()
-
-                    cursor.close()
-                    conn.close()
-
-                    st.success(
-                        f"{member_name}さんを削除しました"
+                    st.markdown(
+                        f"**{member_name}**"
                     )
 
-                    st.rerun()
+                with col2:
+
+                    if st.button(
+                        "削除",
+                        key=f"existing_delete_{member_id}"
+                    ):
+
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+
+                        cursor.execute(
+                            """
+                            DELETE FROM mydb.members
+                            WHERE id = %s
+                            """,
+                            (member_id,)
+                        )
+
+                        conn.commit()
+
+                        cursor.close()
+                        conn.close()
+
+                        st.success(
+                            f"{member_name}さんを削除しました。"
+                        )
+
+                        st.rerun()
 
     else:
-        st.write("メンバーが登録されていません。")
+
+        st.info(
+            "メンバーが登録されていません。"
+        )
 
 
-    # ------------------------------------------
-    # メンバーを追加
-    # ------------------------------------------
+    # ----------------------------------------------
+    # 既存旅行へメンバー追加
+    # ----------------------------------------------
 
-    st.subheader("メンバーを追加")
+    st.write("")
 
     with st.form(
-        f"existing_member_form_{travel_id}",
+        f"existing_member_form_{selected_travel_id}",
         clear_on_submit=True
     ):
 
         new_member_name = st.text_input(
-            "追加する名前を入力してください"
+            "新しく追加するメンバー",
+            placeholder="例：佐藤"
         )
 
         add_existing_member = st.form_submit_button(
-            "メンバーを追加"
+            "メンバーを追加",
+            use_container_width=True
         )
+
 
         if add_existing_member:
 
-            if new_member_name:
+            if not new_member_name.strip():
+
+                st.warning(
+                    "名前を入力してください。"
+                )
+
+            else:
 
                 conn = get_db_connection()
                 cursor = conn.cursor()
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO mydb.members
                     (travel_id, name)
                     VALUES (%s, %s)
-                """, (travel_id, new_member_name))
+                    """,
+                    (
+                        selected_travel_id,
+                        new_member_name.strip()
+                    )
+                )
 
                 conn.commit()
 
@@ -252,15 +390,7 @@ if travels:
                 conn.close()
 
                 st.success(
-                    f"{new_member_name}さんを追加しました"
+                    f"{new_member_name.strip()}さんを追加しました。"
                 )
 
                 st.rerun()
-
-            else:
-                st.warning("名前を入力してください。")
-
-else:
-
-    st.info("まだ旅行が登録されていません。")
-

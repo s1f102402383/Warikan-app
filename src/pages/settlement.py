@@ -2,17 +2,27 @@ import streamlit as st
 from db import get_db_connection
 
 
-st.title("割り勘計算")
+st.title("割り勘")
 
-# 旅行を取得
+st.caption(
+    "旅行で使った金額をもとに、誰が誰にいくら支払えばよいかを自動で計算します。"
+)
+
+
+# ==================================================
+# 旅行取得
+# ==================================================
+
 conn = get_db_connection()
 cursor = conn.cursor()
 
-cursor.execute("""
+cursor.execute(
+    """
     SELECT id, name
     FROM mydb.travels
     ORDER BY id DESC
-""")
+    """
+)
 
 travels = cursor.fetchall()
 
@@ -20,220 +30,416 @@ cursor.close()
 conn.close()
 
 
-if travels:
+if not travels:
 
-    # 旅行名ではなくIDを使って選択肢を作る
-    travel_options = {
-        f"{travel[1]}": travel[0]
-        for travel in travels
-    }
-
-    selected_travel = st.selectbox(
-        "旅行を選択してください",
-        list(travel_options.keys())
+    st.info(
+        "先に旅行を作成してください。"
     )
 
-    travel_id = travel_options[selected_travel]
+    st.stop()
 
-    st.write("選択した旅行ID:", travel_id)
 
-    # =========================
-    # メンバーを取得
-    # =========================
+# ==================================================
+# 旅行選択
+# ==================================================
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+travel_labels = [
+    f"{travel[1]}（ID: {travel[0]}）"
+    for travel in travels
+]
 
-    cursor.execute("""
-        SELECT id, name
-        FROM mydb.members
-        WHERE travel_id = %s
-    """, (travel_id,))
+travel_ids = [
+    travel[0]
+    for travel in travels
+]
 
-    members = cursor.fetchall()
 
-    cursor.close()
-    conn.close()
+settlement_travel_id = st.session_state.get(
+    "settlement_travel_id"
+)
 
-    st.subheader("メンバー")
 
-    for member in members:
-        st.write(f"・{member[1]}")
+default_index = 0
 
-    # =========================
-    # 支払額を取得
-    # =========================
 
-    st.subheader("支払額")
+if settlement_travel_id is not None:
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    for i, travel_id in enumerate(
+        travel_ids
+    ):
 
-    cursor.execute("""
-        SELECT payer_id, SUM(amount)
-        FROM mydb.evidences
-        WHERE travel_id = %s
-        GROUP BY payer_id
-    """, (travel_id,))
+        if travel_id == settlement_travel_id:
 
-    payments = cursor.fetchall()
+            default_index = i
 
-    cursor.close()
-    conn.close()
+            break
 
-    # メンバーごとの支払額を保存
-    paid_amounts = {}
 
-    for member in members:
-        member_id = member[0]
-        member_name = member[1]
+selected_label = st.selectbox(
+    "旅行",
+    travel_labels,
+    index=default_index
+)
 
-        paid = 0
 
-        for payment in payments:
-            payer_id, total_paid = payment
+selected_index = travel_labels.index(
+    selected_label
+)
 
-            if payer_id == member_id:
-                paid = total_paid
+travel_id = travel_ids[
+    selected_index
+]
 
-        paid_amounts[member_id] = paid
+selected_travel_name = travels[
+    selected_index
+][1]
 
-        st.write(
-            f"{member_name}：{paid}円"
+
+# ==================================================
+# メンバー取得
+# ==================================================
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute(
+    """
+    SELECT id, name
+    FROM mydb.members
+    WHERE travel_id = %s
+    ORDER BY id
+    """,
+    (travel_id,)
+)
+
+members = cursor.fetchall()
+
+cursor.close()
+conn.close()
+
+
+if len(members) < 2:
+
+    st.warning(
+        "割り勘には2人以上のメンバーが必要です。"
+    )
+
+    st.stop()
+
+
+# ==================================================
+# 支払いデータ取得
+# ==================================================
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute(
+    """
+    SELECT
+        payer_id,
+        COALESCE(SUM(amount), 0)
+    FROM mydb.evidences
+    WHERE travel_id = %s
+    GROUP BY payer_id
+    """,
+    (travel_id,)
+)
+
+payment_data = cursor.fetchall()
+
+cursor.close()
+conn.close()
+
+
+# ==================================================
+# 支払額
+# ==================================================
+
+payments = {}
+
+for member_id, member_name in members:
+
+    payments[member_id] = 0
+
+
+for payer_id, amount in payment_data:
+
+    if payer_id in payments:
+
+        payments[payer_id] = int(
+            amount or 0
         )
 
-    # =========================
-    # 旅行全体の合計金額
-    # =========================
 
-    st.subheader("旅行全体の合計金額")
+# ==================================================
+# 金額計算
+# ==================================================
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+total_amount = sum(
+    payments.values()
+)
 
-    cursor.execute("""
-        SELECT SUM(amount)
-        FROM mydb.evidences
-        WHERE travel_id = %s
-    """, (travel_id,))
+member_count = len(
+    members
+)
 
-    total_amount = cursor.fetchone()[0]
+per_person = (
+    total_amount / member_count
+)
 
-    cursor.close()
-    conn.close()
 
-    if total_amount is None:
-        total_amount = 0
+# ==================================================
+# 旅行情報
+# ==================================================
 
-    st.write(f"合計：{total_amount}円")
+st.subheader(
+    selected_travel_name
+)
 
-    # =========================
-    # 1人あたりの負担額
-    # =========================
+st.caption(
+    f"{member_count}人で割り勘"
+)
 
-    st.subheader("1人あたりの負担額")
 
-    if members:
-        per_person = total_amount / len(members)
-        st.write(f"1人あたり：{per_person:.0f}円")
+# ==================================================
+# 金額
+# ==================================================
 
-        # =========================
-        # 精算額
-        # =========================
+col1, col2 = st.columns(2)
 
-        st.subheader("精算額")
 
-        balances = {}
+with col1:
 
-        for member in members:
-            member_id = member[0]
-            member_name = member[1]
+    st.metric(
+        "旅行で使った合計",
+        f"{total_amount:,} 円"
+    )
 
-            paid = paid_amounts[member_id]
 
-            balance = paid - per_person
+with col2:
 
-            balances[member_id] = balance
+    st.metric(
+        "1人あたり",
+        f"{per_person:,.0f} 円"
+    )
 
-            if balance > 0:
-                st.write(
-                    f"{member_name}："
-                    f"{balance:.0f}円 もらう"
-                )
-            elif balance < 0:
-                st.write(
-                    f"{member_name}："
-                    f"{abs(balance):.0f}円 払う"
-                )
-            else:
-                st.write(
-                    f"{member_name}："
-                    "精算なし"
-                )
 
-        # =========================
-        # 誰が誰にいくら払うか
-        # =========================
+# ==================================================
+# 支払った金額
+# ==================================================
 
-        st.subheader("精算方法")
+st.divider()
 
-        # お金を払う人
-        debtors = []
+st.subheader(
+    "支払った金額"
+)
 
-        # お金をもらう人
-        creditors = []
 
-        for member in members:
-            member_id = member[0]
-            member_name = member[1]
-            balance = balances[member_id]
+for member_id, member_name in members:
 
-            if balance < 0:
-                debtors.append({
-                    "id": member_id,
-                    "name": member_name,
-                    "amount": -balance
-                })
+    paid = payments[
+        member_id
+    ]
 
-            elif balance > 0:
-                creditors.append({
-                    "id": member_id,
-                    "name": member_name,
-                    "amount": balance
-                })
 
-        # 支払いを計算
-        i = 0
-        j = 0
+    with st.container(border=True):
 
-        while i < len(debtors) and j < len(creditors):
+        col1, col2 = st.columns(
+            [3, 1]
+        )
 
-            debtor = debtors[i]
-            creditor = creditors[j]
 
-            payment = min(
-                debtor["amount"],
-                creditor["amount"]
+        with col1:
+
+            st.markdown(
+                f"**{member_name}**"
             )
 
-            st.write(
-                f"**{debtor['name']}"
-                f" → "
-                f"{creditor['name']}"
-                f"：{payment:.0f}円**"
+
+        with col2:
+
+            st.markdown(
+                f"**{paid:,} 円**"
             )
 
-            debtor["amount"] -= payment
-            creditor["amount"] -= payment
 
-            if debtor["amount"] < 0.01:
-                i += 1
+# ==================================================
+# 差額計算
+# ==================================================
 
-            if creditor["amount"] < 0.01:
-                j += 1
+balances = []
 
-    else:
-        st.write("メンバーがいません。")
+
+for member_id, member_name in members:
+
+    balance = (
+        payments[member_id]
+        - per_person
+    )
+
+    balances.append(
+        (
+            member_id,
+            member_name,
+            balance
+        )
+    )
+
+
+creditors = []
+debtors = []
+
+
+for (
+    member_id,
+    member_name,
+    balance
+) in balances:
+
+    if balance > 0.01:
+
+        creditors.append(
+            [
+                member_id,
+                member_name,
+                balance
+            ]
+        )
+
+    elif balance < -0.01:
+
+        debtors.append(
+            [
+                member_id,
+                member_name,
+                -balance
+            ]
+        )
+
+
+# ==================================================
+# 精算計算
+# ==================================================
+
+settlements = []
+
+i = 0
+j = 0
+
+
+while (
+    i < len(debtors)
+    and j < len(creditors)
+):
+
+    debtor = debtors[i]
+    creditor = creditors[j]
+
+    amount = min(
+        debtor[2],
+        creditor[2]
+    )
+
+    settlements.append(
+        (
+            debtor[1],
+            creditor[1],
+            amount
+        )
+    )
+
+    debtor[2] -= amount
+
+    creditor[2] -= amount
+
+
+    if debtor[2] < 0.01:
+
+        i += 1
+
+
+    if creditor[2] < 0.01:
+
+        j += 1
+
+
+# ==================================================
+# 精算
+# ==================================================
+
+st.divider()
+
+st.subheader(
+    "精算"
+)
+
+
+if settlements:
+
+    st.write(
+        "以下の支払いを行えば、旅行の精算が完了します。"
+    )
+
+
+    for (
+        debtor_name,
+        creditor_name,
+        amount
+    ) in settlements:
+
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"### {amount:,.0f} 円"
+            )
+
+
+            col1, col2, col3 = st.columns(
+                [2, 1, 2]
+            )
+
+
+            with col1:
+
+                st.caption(
+                    "支払う人"
+                )
+
+                st.markdown(
+                    f"**{debtor_name}**"
+                )
+
+
+            with col2:
+
+                st.markdown(
+                    "<div style='text-align:center; font-size:28px; color:#80a594;'>→</div>",
+                    unsafe_allow_html=True
+                )
+
+
+            with col3:
+
+                st.caption(
+                    "受け取る人"
+                )
+
+                st.markdown(
+                    f"**{creditor_name}**"
+                )
+
+
+            st.success(
+                f"{debtor_name}さんが"
+                f"{creditor_name}さんに"
+                f"{amount:,.0f}円支払います。"
+            )
+
 
 else:
-    st.warning("旅行が登録されていません。")
+
+    st.success(
+        "精算は完了しています。追加の支払いはありません。"
+    )
